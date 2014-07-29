@@ -1,0 +1,173 @@
+#!/usr/bin/php
+<?php
+/**
+ * checkcc
+ *
+ * From the command line, check to see if a credit card number meets
+ * the luhn check.
+ *
+ * @version    $Id:$
+ * @link       https://github.com/jmleapline/Random-Scripts
+ */
+
+
+// GLOBAL VARIBLES
+$DEBUG = FALSE;
+
+/////////////////////////// Functions ///////////////////////////
+
+/**
+ * function / processNumbers
+ *
+ * Take the card number and normalize it. Cut out dashes, etc.
+ *
+ * @param string $pan
+ *
+ * @return null
+ */
+function processNumbers($pan = null) {
+
+	if (empty($pan)) {
+		print set("Error", "red") . ": Need to type a credit card number.\n";
+		exit;
+	}
+
+
+	$pans = explode(" ", $pan);
+
+	foreach ($pans as $ccNum) {
+
+		$ccNum = str_replace("-", "", $ccNum);
+
+		// Match only numbers after striping the dashes.
+		if ( preg_match("/^[0-9]+$/", $ccNum) == 1) {
+			luhnCheck($ccNum);
+		} else {
+			// error since there is something else in there.
+			print set("Error", "red") . ": Contains characters other than '-' and [0-9].\n";
+		}
+	}
+}
+
+/**
+ * function / luhnCheck
+ *
+ * Now let's check the number to see whether it is legite.
+ *
+ * @param string $ccNum
+ *
+ * @return null
+ */
+function luhnCheck($ccNum) {
+	global $DEBUG;
+
+	// set the total value
+	$sum = 0;
+	$addTo = 0; // the number to add to the sum; easier to debug having it separate.
+
+	for ($x = 0; $x < strlen($ccNum); $x++) {
+		if ( !($x % 2)) {
+			$tempNum = $ccNum[$x]*2;
+
+			if (strlen($tempNum) == 2)
+				$addTo = (1 + ($tempNum%10));
+			else
+				$addTo = $tempNum;
+
+		} else {
+			$addTo = $ccNum[$x];
+		}
+
+		// add to the overall sum
+		$sum += $addTo;
+
+		$DEBUG && print $ccNum[$x] . ": " . $addTo . " = " . $sum . "\n";
+	}
+
+	// test the cardholder number
+	$DEBUG && print "SUM: $sum\n";
+
+	if ($sum % 10 == 0) {
+		print "$ccNum:	" . set("Valid Number", "green") . "\n";
+	} else {
+		print "$ccNum:	" . set("Invalid Number", "red") . "\n";
+	}
+}
+
+/**
+ * function / getInput
+ *
+ * Since we don't want to pass the card number on the command line, we
+ * need to take the number from an input.
+ *
+ * @param string $length
+ *
+ * @return string $input
+ */
+function getInput($length=255) {
+
+	// Open a read from the command line
+	$fr=fopen("php://stdin","r");
+	$input = fgets($fr,$length);
+	$input = rtrim($input); // Trim off the return
+	fclose($fr);
+
+	return $input;
+}
+
+/**
+ * function / set
+ *
+ * Thanks to php-ansi-color (https://github.com/loopj/commonjs-ansi-color).
+ * This sets the color on the terninal if you have ncurses.
+ *
+ * @param string $str
+ *
+ * @return string $color
+ */
+function set($str, $color)
+{
+	static $ANSI_CODES = array(
+		"off"        => 0,
+		"bold"       => 1,
+		"italic"     => 3,
+		"underline"  => 4,
+		"blink"      => 5,
+		"inverse"    => 7,
+		"hidden"     => 8,
+		"black"      => 30,
+		"red"        => 31,
+		"green"      => 32,
+		"yellow"     => 33,
+		"blue"       => 34,
+		"magenta"    => 35,
+		"cyan"       => 36,
+		"white"      => 37,
+		"black_bg"   => 40,
+		"red_bg"     => 41,
+		"green_bg"   => 42,
+		"yellow_bg"  => 43,
+		"blue_bg"    => 44,
+		"magenta_bg" => 45,
+		"cyan_bg"    => 46,
+		"white_bg"   => 47
+	);
+	$color_attrs = explode("+", $color);
+	$ansi_str = "";
+	foreach ($color_attrs as $attr) {
+		$ansi_str .= "\033[" . $ANSI_CODES[$attr] . "m";
+	}
+	$ansi_str .= $str . "\033[" . $ANSI_CODES["off"] . "m";
+	return $ansi_str;
+}
+
+/////////////////////////// Main Area ///////////////////////////
+
+print "Enter PAN: ";
+$pan = getInput();
+
+processNumbers($pan);
+
+
+/*-----------------------------------------------------------------------------*/
+?>

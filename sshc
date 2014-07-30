@@ -1,0 +1,205 @@
+#!/usr/bin/php
+<?php
+/**
+ * sshc
+ *
+ * Just an easier way to keep a tally of all your boxes you need
+ * to ssh with. References a JSON file with the systems.
+ *
+ * @version    $Id:$
+ * @link       https://github.com/jmleapline/Random-Scripts
+ */
+
+// GLOBAL VARIBLES
+global $OPTION;
+$DEBUG = FALSE;
+
+// this is the JSON file with the list. make sure it is correct. default is CWD.
+$configFile = json_decode(file_get_contents('servers.json', FILE_USE_INCLUDE_PATH));
+
+/**
+ * function / parseArgs
+ */
+function parseArgs()
+{
+    // Globals
+    global $OPTION;
+    $argv = $GLOBALS["argv"];
+    $count = 0; // the count for the non-option arguments.
+    
+    // Check for any arguments / error out if not
+	if ( $GLOBALS["argc"] == 1 )
+		listSRVRs();
+    
+    // See what has been passed and get them recorded.
+    while (($param = array_shift($argv)) !== NULL) {
+        switch ( $param ) {
+         	case '-h':
+                listSRVRs();
+                break;
+            case '-u':
+            case '--user':
+            case '-l':
+            	$OPTION['username'] = array_shift($argv);
+            	break;
+            default:
+            	$OPTION[$count] = $param;
+            	$count++;
+            	break;
+        }
+    }
+    
+    $OPTION['host'] = $OPTION[1];
+}
+
+/**
+ * function / connect
+ *
+ * connect with ssh to the selected server
+ *
+ * @param string $server
+ *
+ * @return null
+ */
+function connect($server)
+{
+    global $OPTION, $configFile;
+    
+    // if we passed a username on the command line, use it
+    if ( !empty($OPTION['username']) )
+    	$server->username = $OPTION['username'];
+    	
+    $run = "ssh ";
+    
+    // if this exists in the json file, or we specific it above, us it
+    if ( !empty($server->username))
+        $run .= "-l ". $server->username;
+    
+    $run .= " ". $server->hostname;
+
+    // run the command
+    print set("[+]", "green") . " " . $run . "\n";
+    passthru($run, $cmdError);
+    
+
+    exit; // end since we're all done
+}
+
+/**
+ * function / listSRVRs
+ *
+ * print out all the servers in our config file
+ *
+ * @param null
+ *
+ * @return null
+ */
+function listSRVRs()
+{
+    global $OPTION, $configFile;
+
+	print "All the servers configured to connect\n\n";
+
+    foreach ($configFile as $key => $value) {
+        print "    " . set($key, "blue");
+        
+        if (!empty($value->description))
+        	print " // ". $value->description;
+        	
+        print "\n";
+    }
+
+    print "\n";
+    print "Run " . set("sshc <server>", "green") . " to connect.\n";
+    exit;
+
+}
+
+/**
+ * function / set
+ *
+ * Thanks to php-ansi-color (https://github.com/loopj/commonjs-ansi-color).
+ * This sets the color on the terninal if you have ncurses.
+ *
+ * @param string $str
+ *
+ * @return string $color
+ */
+function set($str, $color)
+{
+	static $ANSI_CODES = array(
+		"off"        => 0,
+		"bold"       => 1,
+		"italic"     => 3,
+		"underline"  => 4,
+		"blink"      => 5,
+		"inverse"    => 7,
+		"hidden"     => 8,
+		"black"      => 30,
+		"red"        => 31,
+		"green"      => 32,
+		"yellow"     => 33,
+		"blue"       => 34,
+		"magenta"    => 35,
+		"cyan"       => 36,
+		"white"      => 37,
+		"black_bg"   => 40,
+		"red_bg"     => 41,
+		"green_bg"   => 42,
+		"yellow_bg"  => 43,
+		"blue_bg"    => 44,
+		"magenta_bg" => 45,
+		"cyan_bg"    => 46,
+		"white_bg"   => 47
+	);
+	$color_attrs = explode("+", $color);
+	$ansi_str = "";
+	foreach ($color_attrs as $attr) {
+		$ansi_str .= "\033[" . $ANSI_CODES[$attr] . "m";
+	}
+	$ansi_str .= $str . "\033[" . $ANSI_CODES["off"] . "m";
+	return $ansi_str;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+
+
+// Make sure we were able to read the config file
+if (empty($configFile)) {
+	print set("[-]", "red") . " " . set("cannot read the config file", "red_bg");
+	
+	switch(json_last_error()) {
+		case JSON_ERROR_CTRL_CHAR:
+			print " - Unexpected control characters found.\n";
+			break;
+		case JSON_ERROR_SYNTAX:
+			print " - Syntax error\n";
+			break;
+	}
+    exit;
+}
+
+// Parse the arguments
+///////////////////////////////////////////////////////////////////////////////////////
+parseArgs();
+
+///////////////////////////////////////////////////////////////////////////////////////
+// check to see if the server exists
+
+if ( !isset($configFile->$OPTION['host']) ) {
+    print set("[-]", "red") . " " . set("the host is not defined", "red_bg") . "\n";
+    exit;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////
+// now let's execute that command
+///////////////////////////////////////////////////////////////////////////////////////
+
+connect($configFile->$OPTION['host']);
+
+
+/*-----------------------------------------------------------------------------*/
+?>

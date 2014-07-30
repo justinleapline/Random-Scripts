@@ -1,0 +1,12 @@
+{ 
+	"logger": {
+		"description" : "splunk server",
+		"hostname": "xyz890.com",
+		"username": "admin"
+	},
+	"web1": {
+		"description" : "personal web hosting site",
+		"hostname": "abc123.com",
+		"username": "root"
+	}
+}

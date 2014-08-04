@@ -1,0 +1,279 @@
+#!/usr/bin/php
+<?php
+/**
+ * service
+ *
+ * Configure commands to run and easily run them. Mimiced after RedHat's service
+ * command.
+ *
+ * @version    $Id:$
+ * @link       https://github.com/jmleapline/Random-Scripts
+ */
+
+// GLOBAL VARIBLES
+global $OPTION;
+$DEBUG = FALSE;
+
+// configuration JSON file // looks in PWD
+$configFile = json_decode(file_get_contents('commands.json', FILE_USE_INCLUDE_PATH));
+
+/**
+ * function / parseArgs
+ *
+ * Need to parse the arguments passed through the command line
+ *
+ * @param null
+ *
+ * @return null
+ */
+function parseArgs()
+{
+    // Globals
+    global $OPTION;
+    $argv = $GLOBALS["argv"];
+    $count = 0; // the count for the non-option arguments.
+    
+    // See what has been passed and get them recorded.
+    while (($param = array_shift($argv)) !== NULL) {
+        switch ( $param ) {
+            case '-h':
+                printHelp();
+                break;
+            default:
+            	$OPTION[$count] = $param;
+            	$count++;
+            	break;
+        }
+    }
+    
+    $OPTION['service'] = (isset($OPTION[1]) ? $OPTION[1] : null);
+    $OPTION['command'] = (isset($OPTION[2]) ? $OPTION[2] : null);
+
+}
+
+/**
+ * function / printHelp
+ *
+ * print some help messages
+ *
+ * @param null
+ *
+ */
+function printHelp()
+{
+    // Print message
+    print <<<EOT
+
+service <service> <command>
+The script automates running, starting, and stoping different services.
+
+Typical commands are
+	start : start the service
+	stop : stop the service
+	restart : restart the service
+	list : list all the available services / commands
+
+
+EOT;
+
+    exit;
+}
+
+
+/**
+ * function / execute
+ *
+ * execute the said command(s)
+ *
+ * @param string $command
+ *
+ */
+function execute($command)
+{
+    global $OPTION, $configFile;
+
+    // if the command is actually an array of commands, run them all
+    if (is_array($command)) {
+        foreach ($command as $key => $run) {
+            if ($configFile->$OPTION['service']->admin)
+                exec("sudo " . $run, $cmdOutput, $cmdError);
+            else
+                exec($run, $cmdOutput, $cmdError);
+
+            printStatus($run, $cmdOutput, $cmdError);;
+        }
+    } else {
+
+        if ($configFile->$OPTION['service']->admin)
+            exec("sudo " . $command, $cmdOutput, $cmdError);
+        else
+            exec($command, $cmdOutput, $cmdError);
+
+        printStatus($command, $cmdOutput, $cmdError);
+    }
+
+    exit; // end since we're all done
+}
+
+
+/**
+ * function / printStatus
+ *
+ * print the status of the command run - debug if necessary
+ *
+ * @param string $command
+ * @param string $cmdOutput
+ * @param string $cmdError
+ *
+ * @return string $color
+ *
+ */
+function printStatus($command, $cmdOutput, $cmdError)
+{
+
+    if ($cmdError == 0)
+        print set("[+]", "green") . " " . $command . "\n";
+    else
+        print set("[-]", "red") . " " . $command . "\n";
+
+}
+
+/**
+ * function / listCMDs
+ *
+ * list out the available commands for the said service
+ *
+ * @param string $service
+ *
+ * @return null
+ *
+ */
+function listCMDs($service)
+{
+    global $OPTION, $configFile;
+
+    print "Command options for " . set($service, "blue") . "\n\n";
+    foreach ($configFile->$service->commands as $key => $value) {
+        // if the value is an array, print out each one
+        if (is_array($value)) {
+            foreach ($value as $item)
+                print "    " . set($key, "green") . " (" . set("multi", "bold+yellow") . ")" . " : $item\n";
+        } else {
+            print "    " . set($key, "green") . " : $value\n";
+        }
+    }
+
+    print "\n";
+    exit;
+
+}
+
+/**
+ * function / set
+ *
+ * Thanks to php-ansi-color (https://github.com/loopj/commonjs-ansi-color).
+ * This sets the color on the terninal if you have ncurses.
+ *
+ * @param string $str
+ *
+ * @return string $color
+ */
+function set($str, $color)
+{
+	static $ANSI_CODES = array(
+		"off"        => 0,
+		"bold"       => 1,
+		"italic"     => 3,
+		"underline"  => 4,
+		"blink"      => 5,
+		"inverse"    => 7,
+		"hidden"     => 8,
+		"black"      => 30,
+		"red"        => 31,
+		"green"      => 32,
+		"yellow"     => 33,
+		"blue"       => 34,
+		"magenta"    => 35,
+		"cyan"       => 36,
+		"white"      => 37,
+		"black_bg"   => 40,
+		"red_bg"     => 41,
+		"green_bg"   => 42,
+		"yellow_bg"  => 43,
+		"blue_bg"    => 44,
+		"magenta_bg" => 45,
+		"cyan_bg"    => 46,
+		"white_bg"   => 47
+	);
+	$color_attrs = explode("+", $color);
+	$ansi_str = "";
+	foreach ($color_attrs as $attr) {
+		$ansi_str .= "\033[" . $ANSI_CODES[$attr] . "m";
+	}
+	$ansi_str .= $str . "\033[" . $ANSI_CODES["off"] . "m";
+	return $ansi_str;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+
+
+// Parse the arguments
+///////////////////////////////////////////////////////////////////////////////////////
+parseArgs();
+
+// Check to see if we need to list out all the commands available
+
+if ( $OPTION['service'] == 'list' ) {
+    print "All the services available\n\n";
+
+    foreach ($configFile as $key => $value) {
+        print "    " . set($key, "blue") . "\n";
+    }
+
+    print "\n";
+    print "Run " . set("service <service> list", "green") . " for more command options.\n";
+    exit;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////
+// check to see if the service / command exists
+if (!isset($configFile->$OPTION['service']) || (isset($OPTION['command']) && !isset($configFile->$OPTION['service']->commands->$OPTION['command']) && $OPTION['command'] != "list")) {
+    print set("[-]", "red") . " " . set("service / command is not defined", "red_bg") . "\n";
+    //printHelp();
+    exit;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////
+// Check to see if the command exists as defined
+if (!isset($configFile->$OPTION['service']->commands->$OPTION['command']) && $OPTION['command'] != "list") {
+
+    if (!isset($OPTION['command']))
+        if (isset($configFile->$OPTION['service']->default))
+            if (isset($configFile->$OPTION['service']->commands->{$configFile->$OPTION['service']->default}))
+                execute($configFile->$OPTION['service']->commands->{$configFile->$OPTION['service']->default});
+
+
+    // if it didn't go into the execute function, then it will end up here and exit
+    listCMDs($OPTION['service']);
+    exit;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////
+// if the command is list, print out the options
+////////////////////////////////////////////////
+if ($OPTION['command'] == "list")
+    listCMDs($OPTION['service']);
+
+///////////////////////////////////////////////////////////////////////////////////////
+// now let's execute that command
+///////////////////////////////////////////////////////////////////////////////////////
+
+execute($configFile->$OPTION['service']->commands->$OPTION['command']);
+
+
+/*-----------------------------------------------------------------------------*/
+?>

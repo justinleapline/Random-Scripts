@@ -1,0 +1,35 @@
+{ 
+	"cache": {
+		"admin": 1, // run with sudo command
+		"default": "clear", // if you don't specify an option, the default will run
+		"commands": {   // run multiple commands at one time
+			"clear": [ "php /www/app/console cache:clear --env=prod",
+			           "php /www/app/console cache:clear --env=dev" ],
+			"perm": "chmod -R 777 /www/app/cache"
+		}
+	}, 
+	"mariadb": {
+		"admin": 0,
+		"commands": {
+			"start": "mysql.server start",
+			"stop": "mysql.server stop",
+			"restart": "mysql.server restart"
+		}
+	},
+	"nginx": {
+		"admin": 1,
+		"commands": {
+			"start": "nginx",
+			"stop": "nginx -s stop",
+			"restart": "nginx -s reload"
+		}
+	},
+	"apache": {
+		"admin": 1,
+		"commands": {
+			"start": "apachectl start",
+			"stop": "apachectl stop",
+			"restart": "apachectl restart"
+		}
+	}
+}

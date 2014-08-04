@@ -19,6 +19,12 @@ $configFile = json_decode(file_get_contents('servers.json', FILE_USE_INCLUDE_PAT
 
 /**
  * function / parseArgs
+ *
+ * Need to parse the arguments passed through the command line
+ *
+ * @param null
+ *
+ * @return null
  */
 function parseArgs()
 {

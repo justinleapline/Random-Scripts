@@ -1,10 +1,11 @@
 #!/usr/bin/php
 <?php
 /**
- * checkcc
+ * ccn
  *
  * From the command line, check to see if a credit card number meets
- * the luhn check.
+ * the luhn check. Also generate a list of validate card numbers given
+ * the first six, last four.
  *
  * @version    $Id:$
  * @link       https://github.com/jmleapline/Random-Scripts
@@ -12,12 +13,55 @@
 
 
 // GLOBAL VARIBLES
-$DEBUG = FALSE;
+$OPTION = array();
+$DEBUG = false;
 
 /////////////////////////// Functions ///////////////////////////
 
 /**
- * function / processNumbers
+ * function / parseArgs
+ *
+ * Need to parse the arguments passed through the command line
+ *
+ * @param null
+ *
+ * @return null
+ */
+function parseArgs() {
+
+    // Globals
+    $OPTION = &$GLOBALS["OPTION"];
+    $argv = $GLOBALS["argv"];
+
+    // Check for any arguments / error out if not
+    if ( $GLOBALS["argc"] == 0 )
+        printHelp();
+
+    // See what has been passed and get them recorded.
+    while (($param = array_shift($argv)) !== NULL) {
+        switch ( $param ) {
+        case '-f':
+            $OPTION['firstsix'] = array_shift($argv);
+            break;
+        case '-l':
+            $OPTION['lastfour'] = array_shift($argv);
+            break;
+        case '-d':
+            $GLOBALS["DEBUG"] = !$GLOBALS["DEBUG"];
+            break;
+        case '-h':
+            printHelp();
+            break;
+        default:
+            //printHelp();
+            break;
+        }
+    }
+}
+
+
+/**
+ * function / checkNumbers
  *
  * Take the card number and normalize it. Cut out dashes, etc.
  *
@@ -25,28 +69,52 @@ $DEBUG = FALSE;
  *
  * @return null
  */
-function processNumbers($pan = null) {
+function checkNumbers($pan = null) {
 
-	if (empty($pan)) {
-		print set("Error", "red") . ": Need to type a credit card number.\n";
-		exit;
-	}
+    if (empty($pan)) {
+        print set("Error", "red") . ": Need to type a credit card number.\n";
+        exit;
+    }
 
 
-	$pans = explode(" ", $pan);
+    $pans = explode(" ", $pan);
 
-	foreach ($pans as $ccNum) {
+    foreach ($pans as $ccNum) {
 
-		$ccNum = str_replace("-", "", $ccNum);
+        $ccNum = str_replace("-", "", $ccNum);
 
-		// Match only numbers after striping the dashes.
-		if ( preg_match("/^[0-9]+$/", $ccNum) == 1) {
-			luhnCheck($ccNum);
-		} else {
-			// error since there is something else in there.
-			print set("Error", "red") . ": Contains characters other than '-' and [0-9].\n";
-		}
-	}
+        // Match only numbers after striping the dashes.
+        if ( preg_match("/^[0-9]+$/", $ccNum) == 1) {
+            luhnCheck($ccNum);
+        } else {
+            // error since there is something else in there.
+            print set("Error", "red") . ": Contains characters other than '-' and [0-9].\n";
+        }
+    }
+}
+
+/**
+ * function / processNumbers
+ *
+ * Print out all the valid numbers between the range given.
+ *
+ * @param string $pan
+ *
+ * @return null
+ */
+function processNumbers($firstsix = null, $lastfour = null) {
+
+    if (false) {
+        print set("Error", "red") . ": Need to type a credit card number.\n";
+        exit;
+    }
+
+
+    for($midCCN = 0; $midCCN <= 999999; $midCCN++){
+        $ccn = $firstsix . str_pad($midCCN, 6, '0', STR_PAD_LEFT) . $lastfour;
+        if ( luhnCheck($ccn) )
+            print "$firstsix". set(str_pad($midCCN, 6, '0', STR_PAD_LEFT), "green+inverse") ."$lastfour\n";
+    }    
 }
 
 /**
@@ -56,42 +124,42 @@ function processNumbers($pan = null) {
  *
  * @param string $ccNum
  *
- * @return null
+ * @return bool
  */
 function luhnCheck($ccNum) {
-	global $DEBUG;
+    global $DEBUG;
+    $passCheck = false;
 
-	// set the total value
-	$sum = 0;
-	$addTo = 0; // the number to add to the sum; easier to debug having it separate.
+    // set the total value
+    $sum = 0;
+    $addTo = 0; // the number to add to the sum; easier to debug having it separate.
 
-	for ($x = 0; $x < strlen($ccNum); $x++) {
-		if ( !($x % 2)) {
-			$tempNum = $ccNum[$x]*2;
+    for ($x = 0; $x < strlen($ccNum); $x++) {
+        if ( !($x % 2)) {
+            $tempNum = $ccNum[$x]*2;
 
-			if (strlen($tempNum) == 2)
-				$addTo = (1 + ($tempNum%10));
-			else
-				$addTo = $tempNum;
+            if (strlen($tempNum) == 2)
+                $addTo = (1 + ($tempNum%10));
+            else
+                $addTo = $tempNum;
 
-		} else {
-			$addTo = $ccNum[$x];
-		}
+        } else {
+            $addTo = $ccNum[$x];
+        }
 
-		// add to the overall sum
-		$sum += $addTo;
+        // add to the overall sum
+        $sum += $addTo;
 
-		$DEBUG && print $ccNum[$x] . ": " . $addTo . " = " . $sum . "\n";
-	}
+        $DEBUG && print $ccNum[$x] . ": " . $addTo . " = " . $sum . "\n";
+    }
 
-	// test the cardholder number
-	$DEBUG && print "SUM: $sum\n";
+    // test the cardholder number
+    $DEBUG && print "SUM: $sum\n";
 
-	if ($sum % 10 == 0) {
-		print "$ccNum:	" . set("Valid Number", "green") . "\n";
-	} else {
-		print "$ccNum:	" . set("Invalid Number", "red") . "\n";
-	}
+    if ($sum % 10 == 0)
+        $passCheck = true;
+        
+    return $passCheck;
 }
 
 /**
@@ -106,13 +174,13 @@ function luhnCheck($ccNum) {
  */
 function getInput($length=255) {
 
-	// Open a read from the command line
-	$fr=fopen("php://stdin","r");
-	$input = fgets($fr,$length);
-	$input = rtrim($input); // Trim off the return
-	fclose($fr);
+    // Open a read from the command line
+    $fr=fopen("php://stdin","r");
+    $input = fgets($fr,$length);
+    $input = rtrim($input); // Trim off the return
+    fclose($fr);
 
-	return $input;
+    return $input;
 }
 
 /**
@@ -127,46 +195,52 @@ function getInput($length=255) {
  */
 function set($str, $color)
 {
-	static $ANSI_CODES = array(
-		"off"        => 0,
-		"bold"       => 1,
-		"italic"     => 3,
-		"underline"  => 4,
-		"blink"      => 5,
-		"inverse"    => 7,
-		"hidden"     => 8,
-		"black"      => 30,
-		"red"        => 31,
-		"green"      => 32,
-		"yellow"     => 33,
-		"blue"       => 34,
-		"magenta"    => 35,
-		"cyan"       => 36,
-		"white"      => 37,
-		"black_bg"   => 40,
-		"red_bg"     => 41,
-		"green_bg"   => 42,
-		"yellow_bg"  => 43,
-		"blue_bg"    => 44,
-		"magenta_bg" => 45,
-		"cyan_bg"    => 46,
-		"white_bg"   => 47
-	);
-	$color_attrs = explode("+", $color);
-	$ansi_str = "";
-	foreach ($color_attrs as $attr) {
-		$ansi_str .= "\033[" . $ANSI_CODES[$attr] . "m";
-	}
-	$ansi_str .= $str . "\033[" . $ANSI_CODES["off"] . "m";
-	return $ansi_str;
+    static $ANSI_CODES = array(
+        "off"        => 0,
+        "bold"       => 1,
+        "italic"     => 3,
+        "underline"  => 4,
+        "blink"      => 5,
+        "inverse"    => 7,
+        "hidden"     => 8,
+        "black"      => 30,
+        "red"        => 31,
+        "green"      => 32,
+        "yellow"     => 33,
+        "blue"       => 34,
+        "magenta"    => 35,
+        "cyan"       => 36,
+        "white"      => 37,
+        "black_bg"   => 40,
+        "red_bg"     => 41,
+        "green_bg"   => 42,
+        "yellow_bg"  => 43,
+        "blue_bg"    => 44,
+        "magenta_bg" => 45,
+        "cyan_bg"    => 46,
+        "white_bg"   => 47
+    );
+    $color_attrs = explode("+", $color);
+    $ansi_str = "";
+    foreach ($color_attrs as $attr) {
+        $ansi_str .= "\033[" . $ANSI_CODES[$attr] . "m";
+    }
+    $ansi_str .= $str . "\033[" . $ANSI_CODES["off"] . "m";
+    return $ansi_str;
 }
 
 /////////////////////////// Main Area ///////////////////////////
 
-print "Enter PAN: ";
-$pan = getInput();
+parseArgs();
 
-processNumbers($pan);
+if ( !empty($OPTION['firstsix']) ){
+    processNumbers($OPTION['firstsix'], $OPTION['lastfour']);
+} else {
+    print "Enter PAN: ";
+    $pan = getInput();
+
+    checkNumbers($pan);   
+}
 
 
 /*-----------------------------------------------------------------------------*/

@@ -75,13 +75,27 @@ function connect($server)
     if ( !empty($OPTION['username']) )
     	$server->username = $OPTION['username'];
     	
-    $run = "ssh ";
+    $run = "ssh -tt";
     
     // if this exists in the json file, or we specific it above, us it
     if ( !empty($server->username))
-        $run .= "-l ". $server->username;
+        $run .= " -l ". $server->username;
     
     $run .= " ". $server->hostname;
+    
+    // if there is a proxy defined, adjust the command
+    if ( !empty($server->proxy)) {
+        // make sure the proxy exists
+        if ( !empty($configFile->{$server->proxy}) ) {
+            // if there is a username associated with the proxy, use it
+            if ( !empty($configFile->{$server->proxy}->username)) {
+                $run = "ssh -tt -l ". $configFile->{$server->proxy}->username ." ". $configFile->{$server->proxy}->hostname ." ". $run;
+            } else {
+                $run = "ssh -tt ". $configFile->{$server->proxy}->hostname ." ". $run;
+            }
+        }
+    }
+            
 
     // run the command
     print set("[+]", "green") . " " . $run . "\n";

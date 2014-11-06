@@ -8,5 +8,16 @@
 		"description" : "personal web hosting site",
 		"hostname": "abc123.com",
 		"username": "root"
+	},
+	"jumpbox": {
+		"description" : "jumpbox to production",
+		"hostname": "172.16.100.10",
+		"username": "bobsmith"
+	},
+	"database1": {
+    	"proxy": "jumpnbox",
+		"description" : "database server / through a proxy",
+		"hostname": "10.10.10.10",
+		"username": "root"
 	}
 }

@@ -12,7 +12,9 @@
 
 // GLOBAL VARIBLES
 global $OPTION;
+$OPTION['list'] = FALSE;
 $DEBUG = FALSE;
+$args = "";
 
 // configuration JSON file // looks in PWD
 $configFile = json_decode(file_get_contents('commands.json', FILE_USE_INCLUDE_PATH));
@@ -31,6 +33,7 @@ function parseArgs()
     // Globals
     global $OPTION;
     $argv = $GLOBALS["argv"];
+    $args = &$GLOBALS["args"];
     $count = 0; // the count for the non-option arguments.
     
     // See what has been passed and get them recorded.
@@ -38,6 +41,13 @@ function parseArgs()
         switch ( $param ) {
             case '-h':
                 printHelp();
+                break;
+            case '-a':
+            case '--args':
+                $args = array_shift($argv);
+                break;
+            case '--list':
+                $OPTION['list'] = TRUE;
                 break;
             default:
             	$OPTION[$count] = $param;
@@ -90,29 +100,26 @@ EOT;
  */
 function execute($command)
 {
-    global $OPTION, $configFile;
-
+    global $OPTION, $configFile, $args;
+    
+    if ( !is_array($command) )
+        $command = array($command);
+        
     // if the command is actually an array of commands, run them all
-    if (is_array($command)) {
-        foreach ($command as $key => $run) {
-            if ($configFile->$OPTION['service']->admin)
-                exec("sudo " . $run, $cmdOutput, $cmdError);
-            else
-                exec($run, $cmdOutput, $cmdError);
-
-            printStatus($run, $cmdOutput, $cmdError);;
-        }
-    } else {
-
+    foreach ($command as $key => $run) {
+        // if we are passing an argument
+        if ( !empty($args) )
+            $run = str_replace("%args%", $args, $run);
+        
         if ($configFile->$OPTION['service']->admin)
-            exec("sudo " . $command, $cmdOutput, $cmdError);
+            passthru("sudo " . $run, $cmdError);
         else
-            exec($command, $cmdOutput, $cmdError);
+            passthru($run, $cmdError);
 
-        printStatus($command, $cmdOutput, $cmdError);
+        printStatus($run, $cmdError);;    
     }
-
-    exit; // end since we're all done
+    
+    exit;
 }
 
 
@@ -128,7 +135,7 @@ function execute($command)
  * @return string $color
  *
  */
-function printStatus($command, $cmdOutput, $cmdError)
+function printStatus($command, $cmdError)
 {
 
     if ($cmdError == 0)
@@ -214,6 +221,33 @@ function set($str, $color)
 	return $ansi_str;
 }
 
+/**
+ * function / isRunning
+ *
+ * Check to see if the process is running.
+ *
+ * @param string $process
+ *
+ * @return null
+ */
+function isRunning( $process ) {
+    
+    if ( !is_array($process) )
+        $process = array($process);
+        
+    // if the command is actually an array of commands, run them all
+    foreach ($process as $processStr) {
+    
+        exec( 'pgrep '. $processStr, $null, $returnVal );
+                
+        if ( $returnVal == 0 )
+            print set("[+]", "green") . " " . set($processStr, "bold") . " is running\n";
+        else
+            print set("[-]", "red") . " " . set($processStr, "bold") . " is stopped\n";
+        
+    }    
+} 
+
 
 ///////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -226,7 +260,9 @@ parseArgs();
 
 // Check to see if we need to list out all the commands available
 
-if ( $OPTION['service'] == 'list' ) {
+///////////////////////////////////////////////////////////////////////////////////////
+// if need to list out commands
+if ( $OPTION['list'] && empty( $OPTION['service'] ) ) {
     print "All the services available\n\n";
 
     foreach ($configFile as $key => $value) {
@@ -239,40 +275,43 @@ if ( $OPTION['service'] == 'list' ) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////
-// check to see if the service / command exists
-if (!isset($configFile->$OPTION['service']) || (isset($OPTION['command']) && !isset($configFile->$OPTION['service']->commands->$OPTION['command']) && $OPTION['command'] != "list")) {
-    print set("[-]", "red") . " " . set("service / command is not defined", "red_bg") . "\n";
-    //printHelp();
-    exit;
-}
-
-
-///////////////////////////////////////////////////////////////////////////////////////
-// Check to see if the command exists as defined
-if (!isset($configFile->$OPTION['service']->commands->$OPTION['command']) && $OPTION['command'] != "list") {
-
-    if (!isset($OPTION['command']))
-        if (isset($configFile->$OPTION['service']->default))
-            if (isset($configFile->$OPTION['service']->commands->{$configFile->$OPTION['service']->default}))
-                execute($configFile->$OPTION['service']->commands->{$configFile->$OPTION['service']->default});
-
-
-    // if it didn't go into the execute function, then it will end up here and exit
-    listCMDs($OPTION['service']);
+// check to see if the command exists
+if ( empty( $OPTION['service'] ) || !isset( $OPTION['service'] ) ) {
+    print set("[-]", "red") . " " . set("service is not defined", "red_bg") . "\n";
     exit;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////
-// if the command is list, print out the options
-////////////////////////////////////////////////
-if ($OPTION['command'] == "list")
+// check to see if we have list set with the service
+if ( $OPTION['list'] ) {
     listCMDs($OPTION['service']);
+    exit;
+}
+    
+///////////////////////////////////////////////////////////////////////////////////////
+// if there is nothing set for command and there is a default set, run that.
+if ( !isset($OPTION['command']) && isset($configFile->$OPTION['service']->default) ) {
+    
+    // check to see if the command exists (configuration issue)
+    if (isset($configFile->$OPTION['service']->commands->{$configFile->$OPTION['service']->default}))
+        execute($configFile->$OPTION['service']->commands->{$configFile->$OPTION['service']->default});
+        
+}
 
 ///////////////////////////////////////////////////////////////////////////////////////
-// now let's execute that command
-///////////////////////////////////////////////////////////////////////////////////////
-
-execute($configFile->$OPTION['service']->commands->$OPTION['command']);
+// check to see if the command exists, and run it
+if ( isset($configFile->$OPTION['service']->commands->$OPTION['command']) ) {
+    
+    // special case for the status command
+    if ( $OPTION['command'] == 'status' ) {
+        isRunning( $configFile->$OPTION['service']->commands->$OPTION['command'] );
+    } else {
+        execute($configFile->$OPTION['service']->commands->$OPTION['command']);
+    }
+    
+} else {
+    print set("[-]", "red") . " " . set("command is not defined", "red_bg") . "\n";
+}
 
 
 /*-----------------------------------------------------------------------------*/
